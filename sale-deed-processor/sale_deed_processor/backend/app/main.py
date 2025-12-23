@@ -69,12 +69,115 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down Sale Deed Processor API...")
 
-# Create FastAPI app
+# Create FastAPI app with enhanced documentation
 app = FastAPI(
     title="Sale Deed Processor API",
-    description="API for processing Indian property sale deed documents",
+    description="""
+## SaleDeed Processor - REST API Documentation
+
+A sophisticated API for processing Indian property sale deed documents using AI/ML technologies.
+
+### Features
+
+* **Document Processing**: Upload and process PDF documents with OCR + LLM extraction
+* **Vision Processing**: Extract registration fees using computer vision
+* **Data Management**: Retrieve, search, and export processed documents
+* **Batch Tracking**: Track upload batches and processing status
+* **User Management**: Manage user information and support tickets
+* **System Monitoring**: Real-time health checks and statistics
+
+### Processing Pipeline
+
+1. **Upload PDFs** → Assign to batch
+2. **OCR Stage** → Extract text from PDF pages
+3. **LLM Stage** → Extract structured data (30+ fields)
+4. **Vision Stage** → Extract registration fee tables
+5. **Database** → Store and retrieve results
+
+### Technology Stack
+
+* **Backend**: FastAPI 0.109.0, Python 3.11+
+* **Database**: PostgreSQL 13+
+* **OCR**: Tesseract 4.1+, Poppler 25.07.0
+* **LLM**: Google Gemini, Ollama, Groq
+* **Vision**: YOLO (ONNX), Gemini Vision
+
+### Quick Start
+
+1. **Upload PDFs**: `POST /api/upload`
+2. **Start Processing**: `POST /api/process/start`
+3. **Get Statistics**: `GET /api/process/stats`
+4. **View Documents**: `GET /api/documents`
+5. **Export Excel**: `GET /api/export/excel`
+
+### API Categories
+
+* **Upload**: Upload PDFs and manage batches
+* **Processing**: Start/stop processing, get statistics
+* **Vision**: Registration fee extraction
+* **Data**: Retrieve documents and export
+* **System**: Health checks and configuration
+* **User Management**: User info and support tickets
+
+### Authentication
+
+**Current Version**: No authentication required (v1.0 - local desktop application)
+
+**Future Versions**: API keys, JWT tokens
+
+### Rate Limiting
+
+**Current Version**: No rate limiting
+
+**Recommended Client Polling**:
+* Processing stats: Every 2 seconds
+* System health: Every 10 seconds
+
+### Support
+
+* **Documentation**: `/docs` (Swagger UI), `/redoc` (ReDoc)
+* **GitHub**: https://github.com/Nitinkaroshi/salesdeed
+* **Version**: 1.0.0
+    """,
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    contact={
+        "name": "SaleDeed Processor Team",
+        "url": "https://github.com/Nitinkaroshi/salesdeed",
+    },
+    license_info={
+        "name": "Proprietary",
+        "url": "https://github.com/Nitinkaroshi/salesdeed/blob/main/LICENSE",
+    },
+    openapi_tags=[
+        {
+            "name": "Upload",
+            "description": "Upload PDF files and manage batch sessions"
+        },
+        {
+            "name": "Processing",
+            "description": "Start/stop PDF processing and monitor statistics"
+        },
+        {
+            "name": "Vision",
+            "description": "Vision-based registration fee extraction"
+        },
+        {
+            "name": "Data",
+            "description": "Retrieve processed documents and export to Excel"
+        },
+        {
+            "name": "System",
+            "description": "System health checks, configuration, and folder statistics"
+        },
+        {
+            "name": "User Management",
+            "description": "User information and support ticket management"
+        }
+    ]
 )
 
 # Add middleware to handle CORS preflight requests
