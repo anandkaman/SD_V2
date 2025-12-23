@@ -1,0 +1,133 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+sale_deed_db/
+
+# Logs
+*.log
+logs/
+
+# Data directories (processed files)
+sale-deed-processor/sale_deed_processor/data/newly_uploaded/*.pdf
+sale-deed-processor/sale_deed_processor/data/processed/*.pdf
+sale-deed-processor/sale_deed_processor/data/failed/*.pdf
+sale-deed-processor/sale_deed_processor/data/left_over_reg_fee/*.png
+sale-deed-processor/sale_deed_processor/data/left_over_reg_fee/*.jpg
+sale-deed-processor/sale_deed_processor/data/vision_failed/*.pdf
+
+# Keep the directories but ignore their contents
+!sale-deed-processor/sale_deed_processor/data/newly_uploaded/.gitkeep
+!sale-deed-processor/sale_deed_processor/data/processed/.gitkeep
+!sale-deed-processor/sale_deed_processor/data/failed/.gitkeep
+!sale-deed-processor/sale_deed_processor/data/left_over_reg_fee/.gitkeep
+!sale-deed-processor/sale_deed_processor/data/vision_failed/.gitkeep
+
+# Node modules
+node_modules/
+fronted/node_modules/
+
+# React build
+fronted/build/
+
+# Electron dist
+fronted/dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Temp files
+*.tmp
+temp/
+tmp/
+
+# Migration versions (optional - uncomment if you want to exclude)
+# sale-deed-processor/sale_deed_processor/backend/migrations/versions/
+
+# ML Models (if too large for git - use Git LFS or external storage)
+# sale-deed-processor/sale_deed_processor/models/*.onnx
+
+# Poppler binaries (platform-specific)
+poppler/
+
+# Package locks (optional - uncomment if needed)
+# package-lock.json
+# fronted/package-lock.json
+
+# Python package metadata
+*.egg-info/
+.installed.cfg
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Backup files
+*.bak
+*.backup

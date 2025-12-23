@@ -1,0 +1,355 @@
+import React, { useState, useEffect } from 'react';
+import { Download, RefreshCw, Search, Loader, AlertCircle } from 'lucide-react';
+import api from '../services/api';
+import * as XLSX from 'xlsx';
+import '../styles/DataView.css';
+
+const DataView = () => {
+  const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  const fetchDocuments = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getDocuments(0, 1000);
+      setDocuments(data);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to fetch documents');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    setDownloading(true);
+    try {
+      // Fetch data from database via API
+      const blob = await api.exportToExcel();
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `sale_deeds_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to download Excel file');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleDownloadClientSide = () => {
+    // Prepare data for Excel export (client-side using current data)
+    const rows = [];
+
+    documents.forEach((doc) => {
+      const baseRow = {
+        Document_ID: doc.document_id,
+        Transaction_Date: doc.transaction_date,
+        Registration_Office: doc.registration_office,
+      };
+
+      // Add property details
+      if (doc.property_details) {
+        Object.assign(baseRow, {
+          Total_Land_Area_sqft: doc.property_details.total_land_area,
+          Property_Address: doc.property_details.address,
+          Property_Pincode: doc.property_details.pincode,
+          Property_State: doc.property_details.state,
+          Sale_Consideration: doc.property_details.sale_consideration,
+          Stamp_Duty_Fee: doc.property_details.stamp_duty_fee,
+          Registration_Fee: doc.property_details.registration_fee,
+          Guidance_Value: doc.property_details.guidance_value,
+        });
+      }
+
+      // Add buyers
+      if (doc.buyers && doc.buyers.length > 0) {
+        doc.buyers.forEach((buyer, idx) => {
+          rows.push({
+            ...baseRow,
+            Person_Type: 'Buyer',
+            Person_Number: idx + 1,
+            Name: buyer.name,
+            Gender: buyer.gender,
+            Aadhaar: buyer.aadhaar_number,
+            PAN: buyer.pan_card_number,
+            Address: buyer.address,
+            Pincode: buyer.pincode,
+            State: buyer.state,
+            Phone: buyer.phone_number,
+            Secondary_Phone: buyer.secondary_phone_number,
+            Email: buyer.email,
+            Property_Share: null,
+          });
+        });
+      }
+
+      // Add sellers
+      if (doc.sellers && doc.sellers.length > 0) {
+        doc.sellers.forEach((seller, idx) => {
+          rows.push({
+            ...baseRow,
+            Person_Type: 'Seller',
+            Person_Number: idx + 1,
+            Name: seller.name,
+            Gender: seller.gender,
+            Aadhaar: seller.aadhaar_number,
+            PAN: seller.pan_card_number,
+            Address: seller.address,
+            Pincode: seller.pincode,
+            State: seller.state,
+            Phone: seller.phone_number,
+            Secondary_Phone: seller.secondary_phone_number,
+            Email: seller.email,
+            Property_Share: seller.property_share,
+          });
+        });
+      }
+
+      // If no buyers or sellers, add at least the document row
+      if ((!doc.buyers || doc.buyers.length === 0) && (!doc.sellers || doc.sellers.length === 0)) {
+        rows.push(baseRow);
+      }
+    });
+
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sale Deeds');
+
+    // Download
+    XLSX.writeFile(wb, `sale_deeds_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  // Transform data for Excel-like display
+  const transformDataForDisplay = () => {
+    const rows = [];
+
+    documents.forEach((doc) => {
+      const buyers = doc.buyers || [];
+      const sellers = doc.sellers || [];
+      const maxPeople = Math.max(buyers.length, sellers.length, 1);
+
+      for (let i = 0; i < maxPeople; i++) {
+        const buyer = buyers[i];
+        const seller = sellers[i];
+
+        rows.push({
+          document_id: doc.document_id,
+          index: i,
+          transaction_date: doc.transaction_date,
+          registration_office: doc.registration_office,
+          property: doc.property_details,
+          buyer,
+          seller,
+        });
+      }
+    });
+
+    return rows;
+  };
+
+  const filteredData = transformDataForDisplay().filter((row) => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      row.document_id?.toLowerCase().includes(search) ||
+      row.buyer?.name?.toLowerCase().includes(search) ||
+      row.seller?.name?.toLowerCase().includes(search) ||
+      row.property?.address?.toLowerCase().includes(search)
+    );
+  });
+
+  // Group rows by document_id for rowspan rendering
+  const groupedData = [];
+  let currentDocId = null;
+  let rowSpanCount = 0;
+
+  filteredData.forEach((row, idx) => {
+    if (row.document_id !== currentDocId) {
+      if (currentDocId !== null) {
+        // Update the rowspan for previous group
+        const firstIdx = groupedData.findIndex(r => r.document_id === currentDocId && r.isFirst);
+        if (firstIdx !== -1) {
+          groupedData[firstIdx].rowSpan = rowSpanCount;
+        }
+      }
+      currentDocId = row.document_id;
+      rowSpanCount = 1;
+      groupedData.push({ ...row, isFirst: true, rowSpan: 1 });
+    } else {
+      rowSpanCount++;
+      groupedData.push({ ...row, isFirst: false });
+    }
+  });
+
+  // Update last group
+  if (currentDocId !== null && groupedData.length > 0) {
+    const firstIdx = groupedData.findIndex(r => r.document_id === currentDocId && r.isFirst);
+    if (firstIdx !== -1) {
+      groupedData[firstIdx].rowSpan = rowSpanCount;
+    }
+  }
+
+  return (
+    <div className="data-view">
+      <div className="data-header">
+        <h2>Data View</h2>
+
+        <div className="data-controls">
+          <div className="search-box">
+            <Search size={20} />
+            <input
+              type="text"
+              placeholder="Search documents, names, addresses..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <button className="btn btn-secondary" onClick={fetchDocuments} disabled={loading}>
+            {loading ? <Loader className="spin" size={20} /> : <RefreshCw size={20} />}
+            Refresh
+          </button>
+
+          <button
+            className="btn btn-primary"
+            onClick={handleDownloadExcel}
+            disabled={downloading || documents.length === 0}
+          >
+            {downloading ? <Loader className="spin" size={20} /> : <Download size={20} />}
+            Download Excel (DB)
+          </button>
+
+          <button
+            className="btn btn-success"
+            onClick={handleDownloadClientSide}
+            disabled={documents.length === 0}
+          >
+            <Download size={20} />
+            Download Excel (Client)
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="alert alert-error">
+          <AlertCircle size={20} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="loading-container">
+          <Loader className="spin" size={48} />
+          <p>Loading data...</p>
+        </div>
+      ) : documents.length === 0 ? (
+        <div className="empty-state">
+          <p>No documents found. Upload and process PDFs to see data here.</p>
+        </div>
+      ) : (
+        <div className="table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Document ID</th>
+                <th>Transaction Date</th>
+                <th>Registration Office</th>
+                <th>Land Area (sqft)</th>
+                <th>Property Address</th>
+                <th>Property Pincode</th>
+                <th>Property State</th>
+                <th>Sale Consideration</th>
+                <th>Stamp Duty</th>
+                <th>Registration Fee</th>
+                <th>Guidance Value</th>
+                <th>Buyer Name</th>
+                <th>Buyer Gender</th>
+                <th>Buyer Aadhaar</th>
+                <th>Buyer PAN</th>
+                <th>Buyer Address</th>
+                <th>Buyer Pincode</th>
+                <th>Buyer State</th>
+                <th>Buyer Phone</th>
+                <th>Buyer Email</th>
+                <th>Seller Name</th>
+                <th>Seller Gender</th>
+                <th>Seller Aadhaar</th>
+                <th>Seller PAN</th>
+                <th>Seller Address</th>
+                <th>Seller Pincode</th>
+                <th>Seller State</th>
+                <th>Seller Phone</th>
+                <th>Seller Email</th>
+                <th>Seller Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groupedData.map((row, idx) => (
+                <tr key={`${row.document_id}-${idx}`}>
+                  {row.isFirst && (
+                    <>
+                      <td rowSpan={row.rowSpan} className="doc-id-cell">
+                        {row.document_id}
+                      </td>
+                      <td rowSpan={row.rowSpan}>{row.transaction_date || '-'}</td>
+                      <td rowSpan={row.rowSpan}>{row.registration_office || '-'}</td>
+                      <td rowSpan={row.rowSpan}>{row.property?.total_land_area || '-'}</td>
+                      <td rowSpan={row.rowSpan}>{row.property?.address || '-'}</td>
+                      <td rowSpan={row.rowSpan}>{row.property?.pincode || '-'}</td>
+                      <td rowSpan={row.rowSpan}>{row.property?.state || '-'}</td>
+                      <td rowSpan={row.rowSpan}>{row.property?.sale_consideration || '-'}</td>
+                      <td rowSpan={row.rowSpan}>{row.property?.stamp_duty_fee || '-'}</td>
+                      <td rowSpan={row.rowSpan}>{row.property?.registration_fee || '-'}</td>
+                      <td rowSpan={row.rowSpan}>{row.property?.guidance_value || '-'}</td>
+                    </>
+                  )}
+                  <td>{row.buyer?.name || '-'}</td>
+                  <td>{row.buyer?.gender || '-'}</td>
+                  <td>{row.buyer?.aadhaar_number || '-'}</td>
+                  <td>{row.buyer?.pan_card_number || '-'}</td>
+                  <td>{row.buyer?.address || '-'}</td>
+                  <td>{row.buyer?.pincode || '-'}</td>
+                  <td>{row.buyer?.state || '-'}</td>
+                  <td>{row.buyer?.phone_number || '-'}</td>
+                  <td>{row.buyer?.email || '-'}</td>
+                  <td>{row.seller?.name || '-'}</td>
+                  <td>{row.seller?.gender || '-'}</td>
+                  <td>{row.seller?.aadhaar_number || '-'}</td>
+                  <td>{row.seller?.pan_card_number || '-'}</td>
+                  <td>{row.seller?.address || '-'}</td>
+                  <td>{row.seller?.pincode || '-'}</td>
+                  <td>{row.seller?.state || '-'}</td>
+                  <td>{row.seller?.phone_number || '-'}</td>
+                  <td>{row.seller?.email || '-'}</td>
+                  <td>{row.seller?.property_share || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="data-footer">
+        <p>Total Documents: {documents.length}</p>
+        <p>Showing: {filteredData.length} rows</p>
+      </div>
+    </div>
+  );
+};
+
+export default DataView;
