@@ -157,5 +157,6 @@ dmypy.json
 
 # Development scripts
 pm2-*.bat
-start-*.bat
+start-backend-helper.bat
+start-frontend-helper.bat
 cleanup-*.bat

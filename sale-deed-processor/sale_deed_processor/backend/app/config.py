@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # Database
-    DATABASE_URL: str = "postgresql://postgres:admin@localhost:5432/sale_deed_db"
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:admin@localhost:5432/sale_deed_db")
 
     # Paths - Handle both development and PyInstaller frozen modes
     @property
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
 
     # YOLO Model
     YOLO_MODEL_PATH: Path = MODELS_DIR / "table1.19.1.onnx"
-    YOLO_CONF_THRESHOLD: float = 0.88
+    YOLO_CONF_THRESHOLD: float = 0.86
     
     # Tesseract
     TESSERACT_LANG: str = "eng+kan"
@@ -96,12 +96,12 @@ class Settings(BaseSettings):
 
     # Groq Configuration (Cloud API)
     USE_GROQ: bool = False
-    GROQ_API_KEY: str = ""  # Add your Groq API key here or set via environment variable
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
 
     # Gemini Configuration (Google Cloud API)
     USE_GEMINI: bool = True
-    GEMINI_API_KEY: str = "AIzaSyAtVc2n3xnU-xDrMTF3O3S59gB1FsPOoEw"  # Add your Gemini API key here or set via environment variable
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = "gemini-2.5-flash-lite"
     GEMINI_VISION_MODEL: str = "gemini-2.5-flash-lite"  # Gemini Flash Lite supports vision
 

@@ -96,7 +96,7 @@ Extracts 30+ fields including:
 │                 Electron Desktop App                     │
 │  ┌──────────────┐         ┌─────────────────────────┐  │
 │  │ Control Panel│◄────────┤   React Frontend        │  │
-│  │  Data View   │         │   (Port 3000)           │  │
+│  │  Data View   │         │   (Port 4000)           │  │
 │  └──────────────┘         └─────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
                             │
@@ -124,14 +124,47 @@ PDF → [OCR Workers] → Text Queue → [LLM Workers] → JSON → Database
 ## Installation
 
 ### Prerequisites
-- **Python 3.11+** with pip
-- **Node.js 18+** with npm
-- **PostgreSQL 13+**
+- **Python 3.8+** with pip
+- **Node.js 16+** with npm
+- **PostgreSQL 13+** (optional, SQLite supported)
 - **Tesseract OCR 4.1+** (with eng+kan language data)
 - **Poppler 25.07.0** (for pdf2image)
 - **CUDA 11.8+** (optional, for GPU acceleration)
 
-### Backend Setup
+### Quick Start (Windows) - Recommended
+
+The easiest way to get started is using the provided batch scripts:
+
+1. **First Time Setup** (Only once):
+```bash
+# Double-click SETUP.bat or run from command line:
+SETUP.bat
+```
+This will:
+- Install all Python dependencies globally
+- Install all Node.js dependencies
+- Takes 5-10 minutes
+
+2. **Start the Application**:
+```bash
+# Double-click START.bat or run from command line:
+START.bat
+```
+This will:
+- Start the backend server (Port 8000)
+- Start the Electron desktop app (Port 4000)
+- Automatically open the desktop application
+
+3. **Stop the Application**:
+```bash
+# Option 1: Click X on the desktop app (shows confirmation dialog)
+# Option 2: Double-click STOP.bat or run from command line:
+STOP.bat
+```
+
+### Manual Installation (Advanced)
+
+#### Backend Setup
 
 1. Navigate to the backend directory:
 ```bash
@@ -143,9 +176,11 @@ cd sale-deed-processor/sale_deed_processor/backend
 pip install -r requirements.txt
 ```
 
-3. Configure environment variables (create `.env` file):
+3. Configure environment variables:
+   - Copy `.env.example` to `.env`
+   - Edit `.env` and add your API keys:
 ```env
-DATABASE_URL=postgresql://postgres:admin@localhost:5432/sale_deed_db
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/sale_deed_db
 GEMINI_API_KEY=your_gemini_api_key_here
 GROQ_API_KEY=your_groq_api_key_here
 ```
@@ -164,14 +199,14 @@ alembic upgrade head
 
 6. Start the backend server:
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Frontend Setup
+#### Frontend Setup
 
 1. Navigate to the frontend directory:
 ```bash
-cd fronted
+cd sale-deed-processor/fronted
 ```
 
 2. Install Node dependencies:
@@ -179,18 +214,12 @@ cd fronted
 npm install
 ```
 
-3. Start the development server:
+3. Configure environment (optional):
+   - Copy `.env.example` to `.env` (defaults work fine)
+
+4. Start the Electron app:
 ```bash
 npm run electron-dev
-```
-
-### Quick Start (Windows)
-
-Use the provided batch scripts:
-```bash
-# From the fronted directory
-setup.bat         # First-time setup
-start-dev.bat     # Start development mode
 ```
 
 ## Usage
@@ -312,13 +341,35 @@ Output: `dist/SaleDeed Processor Setup 1.0.0.exe` (~100 MB)
 
 ### Common Issues
 
+**"No module named uvicorn"**:
+- Run `SETUP.bat` to install all dependencies
+- Or manually: `pip install -r sale-deed-processor/sale_deed_processor/backend/requirements.txt`
+
+**"node_modules not found"**:
+- Run `SETUP.bat` to install all dependencies
+- Or manually: `cd sale-deed-processor/fronted && npm install`
+
+**Port already in use**:
+- Run `STOP.bat` first to close all services
+- Then run `START.bat` again
+
+**Desktop app not opening**:
+- Wait 10-15 seconds after running `START.bat`
+- Check if backend started successfully in the terminal window
+- Ensure ports 8000 and 4000 are available
+
+**Terminals not closing properly**:
+- Click X on the desktop app and select "Yes" to close all services
+- Or run `STOP.bat` to manually kill all processes
+
 **OCR Failures**:
 - Verify Tesseract installation: `tesseract --version`
 - Check language data: `tesseract --list-langs` (should include eng, kan)
 - Ensure Poppler is in PATH: `pdftoppm -v`
 
 **LLM Errors**:
-- Check API keys in `.env` file
+- Check API keys in `.env` file (copy from `.env.example`)
+- For Gemini: Ensure valid API key is set in `sale-deed-processor/sale_deed_processor/backend/.env`
 - For Ollama: Ensure service is running (`ollama serve`)
 - Verify network connectivity for cloud APIs
 
