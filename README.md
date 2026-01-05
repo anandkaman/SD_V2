@@ -409,5 +409,5 @@ Planned features:
 ---
 
 **Version**: 1.0.0
-**Last Updated**: December 2024
+**Last Updated**: December 2025
 **Minimum Requirements**: Python 3.11+, Node.js 18+, PostgreSQL 13+, 8GB RAM
