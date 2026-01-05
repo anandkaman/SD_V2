@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class YOLOTableDetector:
-    def __init__(self, model_path: str, conf_threshold: float = 0.80):
+    def __init__(self, model_path: str, conf_threshold: float = 0.85):
         """
         Initialize YOLO detector with ONNX model
         

@@ -131,7 +131,7 @@ def generate_csv_export(
             "Postal Code": prop.pincode if prop and prop.pincode else "",
             "State Code": prop.state if prop and prop.state else "",
             "Country Code": "IN",
-            "Stamp Value": prop.stamp_duty_fee if prop and prop.stamp_duty_fee else "",
+            "Stamp Value": prop.registration_fee if prop and prop.registration_fee else "",
             "Remarks": "",
             "Transaction Amount related to the person (PC)": prop.sale_consideration if prop and prop.sale_consideration else ""
         }

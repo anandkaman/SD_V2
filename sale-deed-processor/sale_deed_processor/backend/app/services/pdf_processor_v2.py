@@ -54,8 +54,8 @@ class PDFProcessorV2:
     def process_stage1_ocr(self, pdf_path: Path, db: Session) -> Stage1Result:
         """
         Stage 1: CPU-intensive processing
-        - Step 1: Perform OCR with Tesseract (max 30 pages)
-        - Step 2: Extract registration fee from OCR text
+        - Step 1: Extract registration fee directly from PDF (pdfplumber)
+        - Step 2: Perform OCR with Tesseract (max 30 pages)
 
         Returns:
             Stage1Result with OCR text and registration fee
@@ -72,33 +72,33 @@ class PDFProcessorV2:
             if self.batch_processor and not self.batch_processor.is_running:
                 raise ProcessingStoppedException("Stopped before Stage 1")
 
-            # Step 1: Perform OCR - Use PyMuPDF for embedded OCR or Tesseract for traditional OCR
+            # Step 1: Extract registration fee directly from PDF using Registration Fee Extractor
+            registration_fee = None
+            logger.info(f"[{document_id}] Stage1 Step1: Extracting registration fee from PDF with pdfplumber")
+            registration_fee = self.reg_fee_extractor.extract(str(pdf_path))
+
+            if registration_fee:
+                logger.info(f"[{document_id}] ✓ Registration Fee Extractor found fee: {registration_fee}")
+            else:
+                logger.warning(f"[{document_id}] Registration Fee Extractor returned null, will try Vision and LLM later")
+
+            # STOP CHECK
+            if self.batch_processor and not self.batch_processor.is_running:
+                raise ProcessingStoppedException("Stopped before OCR")
+
+            # Step 2: Perform OCR - Use PyMuPDF for embedded OCR or Tesseract for traditional OCR
             pdf_images = None  # Store images for YOLO reuse
             if settings.USE_EMBEDDED_OCR:
-                logger.info(f"[{document_id}] Stage1 Step1: Reading embedded OCR with PyMuPDF (max 30 pages)")
+                logger.info(f"[{document_id}] Stage1 Step2: Reading embedded OCR with PyMuPDF (max 30 pages)")
                 full_ocr_text = self.pymupdf_reader.get_full_text(str(pdf_path), max_pages=30)
             else:
-                logger.info(f"[{document_id}] Stage1 Step1: Performing OCR with Poppler+Tesseract (max 30 pages)")
+                logger.info(f"[{document_id}] Stage1 Step2: Performing OCR with Poppler+Tesseract (max 30 pages)")
                 full_ocr_text, pdf_images = self.ocr_service.get_full_text(str(pdf_path), max_pages=30, return_images=True)
 
             if not full_ocr_text or len(full_ocr_text) < 100:
                 raise Exception("Text extraction returned insufficient text")
 
             logger.info(f"[{document_id}] OCR completed: {len(full_ocr_text)} characters")
-
-            # STOP CHECK
-            if self.batch_processor and not self.batch_processor.is_running:
-                raise ProcessingStoppedException("Stopped before registration fee extraction")
-
-            # Step 2: Extract registration fee from OCR text using Registration Fee Extractor
-            registration_fee = None
-            logger.info(f"[{document_id}] Stage1 Step2: Extracting registration fee from OCR text")
-            registration_fee = self.reg_fee_extractor.extract_from_ocr_text(full_ocr_text)
-
-            if registration_fee:
-                logger.info(f"[{document_id}] ✓ Registration Fee Extractor found fee: {registration_fee}")
-            else:
-                logger.warning(f"[{document_id}] Registration Fee Extractor returned null, will try LLM and YOLO later")
 
             return Stage1Result(
                 pdf_path=pdf_path,
@@ -241,69 +241,68 @@ class PDFProcessorV2:
 
 
             # NEW REGISTRATION FEE PRIORITY LOGIC:
-            # Priority 1: Registration Fee Extractor (from Stage 1 OCR text) - FINAL if found
-            # Priority 2: YOLO+Vision - if extractor returned null
-            # Priority 3: LLM extraction - if both above returned null
+            # Priority 1: YOLO+Vision (from table detection) - FIRST PRIORITY
+            # Priority 2: Registration Fee Extractor (from Stage 1 OCR text) - SECOND PRIORITY
+            # Priority 3: LLM extraction - LAST RESORT
 
             final_registration_fee = None
             table_detected = False  # Initialize to avoid UnboundLocalError
             llm_registration_fee = cleaned_data["property_details"].get("registration_fee")
 
-            # Priority 1: Registration Fee Extractor (from Stage 1)
-            if registration_fee:
+            # Priority 1: YOLO+Vision (FIRST PRIORITY)
+            logger.info(f"[{document_id}] Trying YOLO+Vision (Priority 1)")
+
+            # STOP CHECK
+            if self.batch_processor and not self.batch_processor.is_running:
+                raise ProcessingStoppedException("Stopped before YOLO")
+
+            # Reuse images from Stage 1 OCR if available, otherwise convert PDF
+            table_image_path, table_detected = self._detect_and_save_table(pdf_path, document_id, stage1_result.pdf_images)
+            result["table_detected"] = table_detected
+
+            if table_detected and table_image_path:
+                logger.info(f"[{document_id}] ✓ YOLO table detected, sending to VLM")
+
+                # Send table image to VLM (Priority 1)
+                try:
+                    from app.services.gemini_vision_service import GeminiVisionService
+                    vision_service = GeminiVisionService()
+                    vlm_registration_fee = vision_service.extract_registration_fee(str(table_image_path))
+
+                    if vlm_registration_fee:
+                        logger.info(f"[{document_id}] ✓ VLM extracted registration fee (Priority 1 - FINAL): {vlm_registration_fee}")
+                        final_registration_fee = vlm_registration_fee
+                        cleaned_data["property_details"]["registration_fee"] = vlm_registration_fee
+                        cleaned_data["property_details"]["guidance_value"] = \
+                            ValidationService.calculate_guidance_value(vlm_registration_fee)
+                    else:
+                        logger.warning(f"[{document_id}] VLM could not extract registration fee from table")
+                except Exception as vlm_error:
+                    logger.error(f"[{document_id}] VLM extraction error: {vlm_error}")
+            else:
+                logger.warning(f"[{document_id}] YOLO failed to detect table")
+
+            # Priority 2: Registration Fee Extractor (if Vision didn't find it)
+            if not final_registration_fee and registration_fee:
                 final_registration_fee = registration_fee
                 cleaned_data["property_details"]["registration_fee"] = registration_fee
                 cleaned_data["property_details"]["guidance_value"] = \
                     ValidationService.calculate_guidance_value(registration_fee)
-                logger.info(f"[{document_id}] ✓ Using Registration Fee Extractor (Priority 1 - FINAL): {registration_fee}")
+                logger.info(f"[{document_id}] ✓ Using Registration Fee Extractor (Priority 2): {registration_fee}")
 
-            # Priority 2: YOLO+Vision (if extractor didn't find it)
-            else:
-                logger.info(f"[{document_id}] Registration Fee Extractor returned null, trying YOLO+Vision (Priority 2)")
-                
-                # STOP CHECK
-                if self.batch_processor and not self.batch_processor.is_running:
-                    raise ProcessingStoppedException("Stopped before YOLO")
-
-                # Reuse images from Stage 1 OCR if available, otherwise convert PDF
-                table_image_path, table_detected = self._detect_and_save_table(pdf_path, document_id, stage1_result.pdf_images)
-                result["table_detected"] = table_detected
-
-                if table_detected and table_image_path:
-                    logger.info(f"[{document_id}] ✓ YOLO table detected, sending to VLM")
-
-                    # Send table image to VLM (Priority 2)
-                    try:
-                        from app.services.gemini_vision_service import GeminiVisionService
-                        vision_service = GeminiVisionService()
-                        vlm_registration_fee = vision_service.extract_registration_fee(str(table_image_path))
-
-                        if vlm_registration_fee:
-                            logger.info(f"[{document_id}] ✓ VLM extracted registration fee (Priority 2): {vlm_registration_fee}")
-                            final_registration_fee = vlm_registration_fee
-                            cleaned_data["property_details"]["registration_fee"] = vlm_registration_fee
-                            cleaned_data["property_details"]["guidance_value"] = \
-                                ValidationService.calculate_guidance_value(vlm_registration_fee)
-                        else:
-                            logger.warning(f"[{document_id}] VLM could not extract registration fee from table")
-                    except Exception as vlm_error:
-                        logger.error(f"[{document_id}] VLM extraction error: {vlm_error}")
-                else:
-                    logger.warning(f"[{document_id}] YOLO failed to detect table")
-
-                # Priority 3: LLM registration fee (fallback if both extractor and YOLO failed)
-                if not final_registration_fee and llm_registration_fee:
-                    logger.info(f"[{document_id}] YOLO+Vision returned null, trying LLM (Priority 3)")
-                    try:
-                        llm_reg_fee_value = float(llm_registration_fee) if isinstance(llm_registration_fee, str) else llm_registration_fee
-                        cleaned_data["property_details"]["registration_fee"] = llm_reg_fee_value
-                        cleaned_data["property_details"]["guidance_value"] = \
-                            ValidationService.calculate_guidance_value(llm_reg_fee_value)
-                        final_registration_fee = llm_reg_fee_value
-                        logger.info(f"[{document_id}] ✓ Using LLM registration fee (Priority 3): {llm_reg_fee_value}")
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"[{document_id}] LLM registration fee invalid: {e}")
-                        final_registration_fee = None
+            # Priority 3: LLM registration fee (fallback if both Vision and Extractor failed)
+            if not final_registration_fee and llm_registration_fee:
+                logger.info(f"[{document_id}] Vision and Extractor returned null, trying LLM (Priority 3)")
+                try:
+                    llm_reg_fee_value = float(llm_registration_fee) if isinstance(llm_registration_fee, str) else llm_registration_fee
+                    cleaned_data["property_details"]["registration_fee"] = llm_reg_fee_value
+                    cleaned_data["property_details"]["guidance_value"] = \
+                        ValidationService.calculate_guidance_value(llm_reg_fee_value)
+                    final_registration_fee = llm_reg_fee_value
+                    logger.info(f"[{document_id}] ✓ Using LLM registration fee (Priority 3): {llm_reg_fee_value}")
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"[{document_id}] LLM registration fee invalid: {e}")
+                    final_registration_fee = None
 
             # STEP 4.1: Transliterate Kannada → Human-readable English
             from app.services.transliteration import transliterate_json_fields

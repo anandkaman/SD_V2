@@ -57,7 +57,7 @@ Father's name is typically mentioned after the person's name using these pattern
    - Sale consideration amount or property sold amount (numeric value only)
    - Stamp duty fee (numeric value only, you may find near ಮುದ್ರಾಂಕ ಶುಲ್ಕ in Kannada stamp duty in english)
    - Registration fee (numeric value only, sometimes mentioned as "ನೋಂದಣಿ ಶುಲ್ಕ" or "ನೊಂದಣಿ ಉದ್ದೇಶಕ್ಕಾಗಿ" in Kannada or registration fee along with stamp duty). *IMPORTANT: Try your best to extract this value*
-   - Paid in cash mode: Extract full cash ONLY if explicitly mentioned and it is way of buyer paying some amount of cash in total to sale consideration. Example: 'a sum of Rs.500/- (Rupees Five Hundred Only) paid by way of Cash;' *STRICT RULE: Return null if NO explicit cash payment is found and retun numarical value.*
+   - Paid in cash mode: Extract full cash ONLY if explicitly mentioned and it is way of buyer paying some amount of cash in total to sale consideration. Example: 'a sum of Rs.5_0/- (Rupees Fiv_ Hundred On_y) paid by way of Cash;' *STRICT RULE: Return null if NO explicit cash payment is found and retun numarical value.*
 
 5. DOCUMENT DETAILS:
    - Transaction date
@@ -65,10 +65,12 @@ Father's name is typically mentioned after the person's name using these pattern
 
 IMPORTANT NOTES:
 - If a field is not found, use *null*.
+- for gender either guess of try to understand from prefix/suffix like Mr., Mrs., Ms., Shri, Smt., etc (some times in kannada). If not possible return null.
 - Preserve exact names as written.
 - **ALL addresses must be in English (translate from Kannada/regional languages, if not possible return as-is).**
 - Multiple buyers/sellers/confirming parties should be in arrays.
-- Date of birth should be in YYYY-MM-DD format (e.g., "1985-06-15")
+- Date of birth should be in YYYY-MM-DD format or null.
+- sometimes pan is mentioned in somewhere far from the user details so try to extract pan from whole document .
 
 Return *ONLY valid JSON* in this exact structure:
 
