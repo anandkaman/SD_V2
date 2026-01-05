@@ -62,10 +62,20 @@ class ApiService {
     return response.data;
   }
 
+  async rerunFailedBatch(batchId) {
+    const response = await this.client.post(`/process/rerun-failed-batch?batch_id=${batchId}`);
+    return response.data;
+  }
+
   async downloadFailedPDFs() {
     const response = await this.client.get('/process/download-failed', {
       responseType: 'blob',
     });
+    return response.data;
+  }
+
+  async getFailedDocuments() {
+    const response = await this.client.get('/process/failed-documents');
     return response.data;
   }
 
@@ -98,6 +108,18 @@ class ApiService {
     return response.data;
   }
 
+  async updateDocument(documentId, updateData) {
+    const response = await this.client.patch(`/documents/${documentId}`, updateData);
+    return response.data;
+  }
+
+  async searchDocuments(filters) {
+    const response = await this.client.post('/documents/search', null, {
+      params: filters
+    });
+    return response.data;
+  }
+
   // ✅ ADD THIS NEW METHOD
   async getBatches() {
     const response = await this.client.get('/batches');
@@ -125,6 +147,30 @@ class ApiService {
       params.download_type = downloadType;
     }
     const response = await this.client.get('/export/excel', {
+      params,
+      responseType: 'blob',
+    });
+    return response.data;
+  }
+
+  async exportToCSV(batchIds = null, batchNames = null, startDate = null, endDate = null, downloadType = null) {
+    const params = {};
+    if (batchIds !== null && batchIds.length > 0) {
+      params.batch_ids = batchIds.join(',');
+    }
+    if (batchNames !== null && batchNames.length > 0) {
+      params.batch_names = batchNames.join(',');
+    }
+    if (startDate !== null) {
+      params.start_date = startDate;
+    }
+    if (endDate !== null) {
+      params.end_date = endDate;
+    }
+    if (downloadType !== null) {
+      params.download_type = downloadType;
+    }
+    const response = await this.client.get('/export/csv', {
       params,
       responseType: 'blob',
     });
@@ -184,6 +230,34 @@ class ApiService {
 
   async updateTicketStatus(ticketId, status) {
     const response = await this.client.patch(`/tickets/${ticketId}/status`, { status });
+    return response.data;
+  }
+
+  // Notification APIs
+  async getNotifications(limit = 50, unreadOnly = false) {
+    const response = await this.client.get('/notifications', {
+      params: { limit, unread_only: unreadOnly }
+    });
+    return response.data;
+  }
+
+  async getUnreadCount() {
+    const response = await this.client.get('/notifications/unread-count');
+    return response.data;
+  }
+
+  async markNotificationRead(notificationId) {
+    const response = await this.client.patch(`/notifications/${notificationId}/read`);
+    return response.data;
+  }
+
+  async markAllRead() {
+    const response = await this.client.patch('/notifications/mark-all-read');
+    return response.data;
+  }
+
+  async deleteNotification(notificationId) {
+    const response = await this.client.delete(`/notifications/${notificationId}`);
     return response.data;
   }
 

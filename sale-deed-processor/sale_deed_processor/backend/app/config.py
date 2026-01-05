@@ -101,7 +101,7 @@ class Settings(BaseSettings):
 
     # Gemini Configuration (Google Cloud API)
     USE_GEMINI: bool = True
-    GEMINI_API_KEY: str = "AIzaSyD7ijMiQ2B5xpyc_c2Tf_edmB-HQBv6rNI"  # Add your Gemini API key here or set via environment variable
+    GEMINI_API_KEY: str = "AIzaSyAtVc2n3xnU-xDrMTF3O3S59gB1FsPOoEw"  # Add your Gemini API key here or set via environment variable
     GEMINI_MODEL: str = "gemini-2.5-flash-lite"
     GEMINI_VISION_MODEL: str = "gemini-2.5-flash-lite"  # Gemini Flash Lite supports vision
 

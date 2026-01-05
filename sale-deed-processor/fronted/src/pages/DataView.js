@@ -127,196 +127,12 @@ const DataView = () => {
     }
   };
 
-  const handleDownloadExcel = async () => {
-    setDownloading(true);
-    try {
-      // Fetch data from database via API
-      const blob = await api.exportToExcel();
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `sale_deeds_export_${new Date().toISOString().split('T')[0]}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to download Excel file');
-    } finally {
-      setDownloading(false);
-    }
+  const handleDownloadCSV = () => {
+    // Open modal to select CSV download options
+    setShowDownloadModal(true);
   };
 
-  const handleDownloadClientSide = async () => {
-    await handleDownloadClientSideWithDocs(documents);
-  };
 
-  const handleDownloadClientSideWithDocs = async (docsToExport, fromDate = null, toDate = null) => {
-    // Prepare data for Excel export with new format (no row spanning)
-    const rows = [];
-    let serialNumber = 1;
-
-    docsToExport.forEach((doc) => {
-      const buyers = doc.buyers || [];
-      const sellers = doc.sellers || [];
-      const allPeople = [...sellers.map(s => ({...s, type: 'S'})), ...buyers.map(b => ({...b, type: 'B'}))];
-
-      if (allPeople.length === 0) return;
-
-      const currentSerialNumber = serialNumber;
-
-      // Create schedule C address with property name
-      const schedCAddress = [
-        doc.property_details?.schedule_c_property_address,
-        doc.property_details?.schedule_c_property_name
-      ].filter(Boolean).join(', ') || '-';
-
-      // Create one row per person (sellers first, then buyers) - all fields repeat
-      allPeople.forEach((person) => {
-        const row = [
-          currentSerialNumber, // SL.NO - same for all people in this document
-          person.type, // USER_TYPE (S or B)
-          doc.document_id || '-',
-          formatNumber(doc.property_details?.schedule_b_area),
-          formatNumber(doc.property_details?.schedule_c_property_area),
-          schedCAddress,
-          doc.property_details?.pincode || '-',
-          doc.property_details?.state || '-',
-          formatNumber(doc.property_details?.sale_consideration),
-          formatNumber(doc.property_details?.stamp_duty_fee),
-          formatNumber(doc.property_details?.registration_fee),
-          formatNumber(doc.property_details?.guidance_value),
-          doc.property_details?.paid_in_cash_mode || '-',
-          doc.transaction_date || '-',
-          doc.registration_office || '-',
-          person.name || '-',
-          person.gender || '-',
-          person.aadhaar_number || '-',
-          person.pan_card_number || '-',
-          person.address || '-',
-          person.pincode || '-',
-          person.state || '-',
-          person.phone_number || '-',
-          person.secondary_phone_number || '-',
-          person.email || '-',
-          person.property_share || '-',
-        ];
-
-        rows.push(row);
-      });
-
-      // Increment serial number only after processing all rows for this document
-      serialNumber++;
-    });
-
-    // Create workbook with ExcelJS
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Sale Deeds');
-
-    // Define columns with headers and widths
-    worksheet.columns = [
-      { header: 'SL.NO', key: 'slno', width: 8 },
-      { header: 'USER_TYPE', key: 'userType', width: 10 },
-      { header: 'Document ID', key: 'docId', width: 22 },
-      { header: 'Schedule B Area (sqft)', key: 'schedBArea', width: 18 },
-      { header: 'Schedule C Area (sqft)', key: 'schedCArea', width: 18 },
-      { header: 'Schedule C Address & Name', key: 'schedCAddr', width: 45 },
-      { header: 'Property Pincode', key: 'propPin', width: 14 },
-      { header: 'Property State', key: 'propState', width: 14 },
-      { header: 'Sale Consideration', key: 'saleCon', width: 16 },
-      { header: 'Stamp Duty', key: 'stampDuty', width: 13 },
-      { header: 'Registration Fee', key: 'regFee', width: 15 },
-      { header: 'Guidance Value', key: 'guidVal', width: 15 },
-      { header: 'Cash Payment', key: 'cashPayment', width: 35 },
-      { header: 'Transaction Date', key: 'transDate', width: 14 },
-      { header: 'Registration Office', key: 'regOffice', width: 20 },
-      { header: 'Name', key: 'name', width: 28 },
-      { header: 'Gender', key: 'gender', width: 10 },
-      { header: 'Aadhaar', key: 'aadhaar', width: 15 },
-      { header: 'PAN', key: 'pan', width: 12 },
-      { header: 'Address', key: 'address', width: 35 },
-      { header: 'Pincode', key: 'pincode', width: 10 },
-      { header: 'State', key: 'state', width: 14 },
-      { header: 'Phone', key: 'phone', width: 14 },
-      { header: 'Secondary Phone', key: 'secPhone', width: 14 },
-      { header: 'Email', key: 'email', width: 26 },
-      { header: 'Property Share', key: 'propShare', width: 14 },
-    ];
-
-    // Style the header row
-    const headerRow = worksheet.getRow(1);
-    headerRow.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF4472C4' },
-    };
-    headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-    headerRow.height = 25;
-
-    // Add borders to header
-    headerRow.eachCell((cell) => {
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FF000000' } },
-        left: { style: 'thin', color: { argb: 'FF000000' } },
-        bottom: { style: 'thin', color: { argb: 'FF000000' } },
-        right: { style: 'thin', color: { argb: 'FF000000' } },
-      };
-    });
-
-    // Add data rows (no merging - all fields repeat)
-    rows.forEach((row) => {
-      worksheet.addRow(row);
-    });
-
-    // Style data rows
-    worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber > 1) {
-        row.height = 20;
-        row.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
-        row.eachCell((cell) => {
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-            left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-            bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-            right: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-          };
-          cell.font = { size: 10 };
-        });
-      }
-    });
-
-    // Generate Excel file
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-
-    // Download file with appropriate name
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-
-    // Generate filename based on date range if provided
-    let filename;
-    if (fromDate && toDate) {
-      filename = `${fromDate}_to_${toDate}.xlsx`;
-    } else if (fromDate) {
-      filename = `from_${fromDate}.xlsx`;
-    } else if (toDate) {
-      filename = `to_${toDate}.xlsx`;
-    } else {
-      filename = `sale_deeds_${new Date().toISOString().split('T')[0]}.xlsx`;
-    }
-
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-  };
 
   // Transform data for Excel-like display
   const transformDataForDisplay = (docsToTransform) => {
@@ -392,9 +208,7 @@ const DataView = () => {
     }
   };
 
-  const handleDownloadExcelWithOptions = () => {
-    setShowDownloadModal(true);
-  };
+
 
   // Tour Guide Handlers
   const handleStartTour = () => {
@@ -414,53 +228,21 @@ const DataView = () => {
     setDownloading(true);
 
     try {
+      let blob;
+      let filename = 'sale_deeds_export.csv';
+
       if (downloadOption === 'all') {
-        // Use backend export with download_type parameter for proper filename
-        const blob = await api.exportToExcel(0, null, null, null, null, null, 'all');
-
-        // Create download link
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `whole_data.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } else if (downloadOption === 'dateRange') {
-        // Filter by date range
-        const filteredDocs = documents.filter((doc) => {
-          const createdDate = new Date(doc.created_at);
-          const start = startDate ? new Date(startDate) : null;
-          const end = endDate ? new Date(endDate) : null;
-
-          // Set start to beginning of day
-          if (start) {
-            start.setHours(0, 0, 0, 0);
-          }
-
-          // Set end to end of day
-          if (end) {
-            end.setHours(23, 59, 59, 999);
-          }
-
-          if (start && createdDate < start) return false;
-          if (end && createdDate > end) return false;
-          return true;
-        });
-
-        // Pass filtered documents directly instead of using state
-        await handleDownloadClientSideWithDocs(filteredDocs, startDate, endDate);
+        // Download all documents as CSV
+        blob = await api.exportToCSV(null, null, null, null, 'all');
+        filename = 'whole_data.csv';
       } else if (downloadOption === 'batch') {
         // Get batch names for selected batches
         const selectedBatchNames = batches
           .filter(batch => selectedBatches.includes(batch.batch_id))
           .map(batch => batch.batch_name || batch.batch_id);
 
-        // Use backend export with batch filtering for better data integrity
-        const blob = await api.exportToExcel(
-          0,
-          null,
+        // Download selected batches as CSV
+        blob = await api.exportToCSV(
           selectedBatches,
           selectedBatchNames,
           null,
@@ -468,21 +250,42 @@ const DataView = () => {
           'batch'
         );
 
-        // Create download link
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        // Filename will be set by backend based on batch names
-        link.download = selectedBatchNames.length === 1
-          ? `${selectedBatchNames[0]}.xlsx`
-          : `multiple_batches_${selectedBatchNames.length}.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
+        // Set filename based on batch selection
+        filename = selectedBatchNames.length === 1
+          ? `${selectedBatchNames[0]}.csv`
+          : `multiple_batches_${selectedBatchNames.length}.csv`;
+      } else if (downloadOption === 'dateRange') {
+        // Download by date range as CSV
+        blob = await api.exportToCSV(
+          null,
+          null,
+          startDate,
+          endDate,
+          'dateRange'
+        );
+
+        // Set filename based on date range
+        if (startDate && endDate) {
+          filename = `${startDate}_to_${endDate}.csv`;
+        } else if (startDate) {
+          filename = `from_${startDate}.csv`;
+        } else if (endDate) {
+          filename = `to_${endDate}.csv`;
+        }
       }
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to download Excel file');
+      setError(err.response?.data?.detail || 'Failed to download CSV file');
     } finally {
       setDownloading(false);
     }
@@ -592,20 +395,11 @@ const DataView = () => {
 
           <button
             className="btn btn-primary"
-            onClick={handleDownloadExcel}
+            onClick={handleDownloadCSV}
             disabled={downloading || documents.length === 0}
           >
             {downloading ? <Loader className="spin" size={20} /> : <Download size={20} />}
-            Download Excel (DB)
-          </button>
-
-          <button
-            className="btn btn-success"
-            onClick={handleDownloadExcelWithOptions}
-            disabled={documents.length === 0}
-          >
-            <Download size={20} />
-            Download Excel
+            Download CSV
           </button>
         </div>
       </div>
@@ -713,7 +507,7 @@ const DataView = () => {
       {showDownloadModal && (
         <div className="modal-overlay" onClick={() => setShowDownloadModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Download Excel Options</h3>
+            <h3>Download CSV Options</h3>
 
             <div className="modal-body">
               <div className="radio-group">

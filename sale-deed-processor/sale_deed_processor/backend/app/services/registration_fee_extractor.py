@@ -91,10 +91,16 @@ class RegistrationFeeExtractor:
         if first_row_val >= self.min_fee:
 
             # Verify Ratio against the Max Value found (Total)
-            # If first_row IS the max (because Total is missing), ratio is 1.0.
+            # Ratio = 1.0 means first_row == max_val (no misc fees, suspicious)
+            # Ratio should be >= threshold but < 1.0 for a valid registration fee table
             ratio = first_row_val / max_val if max_val != 0 else 0
 
-            if ratio >= self.threshold_pct:
+            # Reject if ratio is exactly 1.0 (registration fee cannot equal total)
+            if ratio == 1.0:
+                logger.warning(f"*** Rejected: Top Row ({first_row_val}) equals Total (Ratio 1.0). Not a valid registration fee table. ***")
+                # Fall through to subtraction logic or return None
+                final_reg_fee = None
+            elif ratio >= self.threshold_pct:
                 logger.info(f"*** Match Found: Top Row ({first_row_val}) is valid (Ratio {ratio:.2f}). ***")
                 final_reg_fee = first_row_val
             else:
@@ -192,29 +198,28 @@ class RegistrationFeeExtractor:
         - Numbers in the typical registration fee range
         """
         try:
-            # Pattern 1: Look for "Registration Fee" or "Reg Fee" followed by number
-            reg_fee_patterns = [
-                r"(?:registration\s+fee|reg\s+fee|regn\s+fee)[:\s]+([0-9,]+\.?[0-9]*)",
-                r"(?:registration|regn)[:\s]+([0-9,]+\.?[0-9]*)",
-            ]
-
-            for pattern in reg_fee_patterns:
-                matches = re.finditer(pattern, ocr_text, re.IGNORECASE)
-                for match in matches:
-                    fee_str = match.group(1).replace(',', '')
-                    try:
-                        fee = float(fee_str)
-                        if fee >= self.min_fee:
-                            logger.info(f"OCR Registration Fee found via pattern: {fee}")
-                            return float(round(fee, 2))
-                    except ValueError:
-                        continue
-
+            # Pattern 1: DISABLED - bypasses ratio validation
+            # Pattern matching returns immediately without checking ratio
+            # This can match wrong values (e.g., "Page 1957 Registration Fee: 38025.00" matches 1957)
+            # Instead, use only Pattern 2 which validates with post_process_registration_fee
+            
             # Pattern 2: Extract all currency-like numbers and apply logic
+            # Process page-by-page to handle cases where first page fails validation
             currency_pattern = r"\b\d{4,7}\.\d{2}\b"
-            numbers = re.findall(currency_pattern, ocr_text)
-
-            if numbers:
+            
+            # Split text by page markers
+            pages = ocr_text.split('--- Page')
+            
+            for page_idx, page_text in enumerate(pages):
+                if not page_text.strip():
+                    continue
+                
+                # Find all currency numbers in this page
+                numbers = re.findall(currency_pattern, page_text)
+                
+                if not numbers or len(numbers) < 2:
+                    continue
+                
                 # Convert to floats
                 vals = []
                 for num_str in numbers:
@@ -228,10 +233,12 @@ class RegistrationFeeExtractor:
                     ordered_numbers = [str(v) for v in vals]
                     fee = self.post_process_registration_fee(ordered_numbers)
                     if fee:
-                        logger.info(f"OCR Registration Fee extracted via number analysis: {fee}")
+                        logger.info(f"OCR Registration Fee extracted from page {page_idx + 1} via number analysis: {fee}")
                         return fee
+                    else:
+                        logger.debug(f"Page {page_idx + 1}: post_process_registration_fee returned None, trying next page")
 
-            logger.debug("No registration fee found in OCR text")
+            logger.debug("No registration fee found in OCR text after checking all pages")
             return None
 
         except Exception as e:

@@ -14,9 +14,13 @@ import {
   Package,
   Search,
   HelpCircle,
+  Bell,
 } from 'lucide-react';
 import api from '../services/api';
 import { controlPanelSteps, joyrideStyles } from '../config/tourSteps';
+import { useNotifications } from '../context/NotificationContext';
+import NotificationCenter from '../components/NotificationCenter';
+import ToastNotification from '../components/ToastNotification';
 import '../styles/ControlPanel.css';
 
 const ControlPanel = () => {
@@ -66,6 +70,9 @@ const ControlPanel = () => {
     const batch = recentBatches.find(b => b.batch_id === batchId);
     return batch ? (batch.batch_name || batchId) : batchId;
   };
+
+  // Notification hook
+  const { unreadCount, setShowNotificationCenter } = useNotifications();
 
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploadStatus, setUploadStatus] = useState(null);
@@ -122,6 +129,11 @@ const ControlPanel = () => {
   const [allTickets, setAllTickets] = useState([]);
   const [userRecordsSearchTerm, setUserRecordsSearchTerm] = useState('');
   const [ticketsSearchTerm, setTicketsSearchTerm] = useState('');
+
+  // Failed Documents Modal States
+  const [showFailedModal, setShowFailedModal] = useState(false);
+  const [failedDocuments, setFailedDocuments] = useState(null);
+  const [expandedBatches, setExpandedBatches] = useState(new Set());
 
   // Define callback functions first
   const fetchStats = useCallback(async () => {
@@ -271,6 +283,11 @@ const ControlPanel = () => {
       setError('Please select PDF files to upload');
       return;
     }
+    // Auto-fill number of files based on selected files
+    setUserInfo(prev => ({
+      ...prev,
+      numberOfFiles: selectedFiles.length
+    }));
     // Show User Info modal before upload
     setShowUserInfoModal(true);
   };
@@ -668,6 +685,57 @@ const ControlPanel = () => {
     }
   };
 
+  // Failed Documents Handlers
+  const fetchFailedDocuments = async () => {
+    try {
+      const data = await api.getFailedDocuments();
+      setFailedDocuments(data);
+    } catch (err) {
+      setError('Failed to fetch failed documents');
+    }
+  };
+
+  const handleViewFailedDocuments = async () => {
+    setLoading(true);
+    try {
+      await fetchFailedDocuments();
+      setShowFailedModal(true);
+    } catch (err) {
+      setError('Failed to load failed documents');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRerunFailedBatch = async (batchId) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api.rerunFailedBatch(batchId);
+      if (result.success) {
+        setUploadStatus({ ...result, type: 'rerun-batch' });
+        await fetchStats(); // Refresh stats
+        await fetchFailedDocuments(); // Refresh failed docs list
+      } else {
+        setError(result.message);
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to rerun batch');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleBatchExpansion = (batchId) => {
+    const newExpanded = new Set(expandedBatches);
+    if (newExpanded.has(batchId)) {
+      newExpanded.delete(batchId);
+    } else {
+      newExpanded.add(batchId);
+    }
+    setExpandedBatches(newExpanded);
+  };
+
   const ProgressBar = ({ value, max, label }) => {
     const percentage = max > 0 ? (value / max) * 100 : 0;
     return (
@@ -733,6 +801,18 @@ const ControlPanel = () => {
               <h1>Sale Deed AI</h1>
               <p className="gov-subtitle">Income Tax Department - Document Processing System</p>
             </div>
+            {/* Notification Bell */}
+            <button
+              className="notification-bell"
+              onClick={() => setShowNotificationCenter(true)}
+              title="Notifications"
+              aria-label="Notifications"
+            >
+              <Bell size={24} />
+              {unreadCount > 0 && (
+                <span className="notification-badge">{unreadCount}</span>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -1057,6 +1137,15 @@ const ControlPanel = () => {
             <Download size={20} />
             Download Failed
           </button>
+          <button
+            className="btn btn-primary"
+            onClick={handleViewFailedDocuments}
+            disabled={loading || (folderStats?.failed || 0) === 0}
+            title="View failed documents by batch"
+          >
+            <Eye size={20} />
+            View Failed Details
+          </button>
         </div>
 
         {processingStats && (
@@ -1279,11 +1368,13 @@ const ControlPanel = () => {
                   type="number"
                   min="1"
                   className="form-input"
-                  placeholder="Enter number of files"
+                  placeholder="Auto-filled from selected files"
                   value={userInfo.numberOfFiles}
-                  onChange={(e) => setUserInfo({ ...userInfo, numberOfFiles: e.target.value })}
-                  disabled={loading}
+                  readOnly
+                  disabled
+                  style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
                 />
+                <span className="field-hint">Automatically set to {selectedFiles.length} (based on selected files)</span>
               </div>
 
               <div className="form-group">
@@ -1398,8 +1489,8 @@ const ControlPanel = () => {
                       {recentBatches.filter(batch =>
                         (batch.batch_name || batch.batch_id).toLowerCase().includes(ticketBatchSearchTerm.toLowerCase())
                       ).length === 0 && (
-                        <div className="searchable-select-empty">No batches found</div>
-                      )}
+                          <div className="searchable-select-empty">No batches found</div>
+                        )}
                     </div>
                   )}
                 </div>
@@ -1515,8 +1606,8 @@ const ControlPanel = () => {
                   record.file_region.toLowerCase().includes(userRecordsSearchTerm.toLowerCase()) ||
                   (record.batch_id && record.batch_id.toLowerCase().includes(userRecordsSearchTerm.toLowerCase()))
                 ).length === 0 && (
-                  <div className="empty-state">No records found</div>
-                )}
+                    <div className="empty-state">No records found</div>
+                  )}
               </div>
             </div>
 
@@ -1603,8 +1694,8 @@ const ControlPanel = () => {
                   ticket.error_type.toLowerCase().includes(ticketsSearchTerm.toLowerCase()) ||
                   (ticket.batch_id && ticket.batch_id.toLowerCase().includes(ticketsSearchTerm.toLowerCase()))
                 ).length === 0 && (
-                  <div className="empty-state">No tickets found</div>
-                )}
+                    <div className="empty-state">No tickets found</div>
+                  )}
               </div>
             </div>
 
@@ -1619,6 +1710,104 @@ const ControlPanel = () => {
           </div>
         </div>
       )}
+
+      {/* Failed Documents Modal */}
+      {showFailedModal && (
+        <div className="modal-overlay" onClick={() => setShowFailedModal(false)}>
+          <div className="modal-content failed-docs-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <AlertCircle size={24} />
+                Failed Documents by Batch
+              </h3>
+              <button
+                className="close-button"
+                onClick={() => setShowFailedModal(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            {failedDocuments && (
+              <>
+                <div className="failed-summary">
+                  <div className="summary-item">
+                    <span className="summary-label">Total Failed Files:</span>
+                    <span className="summary-value">{failedDocuments.total_failed_files || 0}</span>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Affected Batches:</span>
+                    <span className="summary-value">{failedDocuments.batch_count || 0}</span>
+                  </div>
+                </div>
+
+                <div className="failed-batches-list">
+                  {failedDocuments.batches && failedDocuments.batches.length > 0 ? (
+                    failedDocuments.batches.map((batch) => (
+                      <div key={batch.batch_id} className="failed-batch-item">
+                        <div
+                          className="batch-header"
+                          onClick={() => toggleBatchExpansion(batch.batch_id)}
+                        >
+                          <div className="batch-info">
+                            <Package size={18} />
+                            <span className="batch-name">{batch.batch_name}</span>
+                          </div>
+                          <div className="batch-stats">
+                            <span className="total-docs">{batch.total_processed} total</span>
+                            <span className="failed-count">{batch.failed_count} failed</span>
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRerunFailedBatch(batch.batch_id);
+                              }}
+                              disabled={loading}
+                            >
+                              {loading ? <Loader className="spin" size={14} /> : <RefreshCw size={14} />}
+                              Retry Batch
+                            </button>
+                          </div>
+                        </div>
+
+                        {expandedBatches.has(batch.batch_id) && (
+                          <div className="failed-files-list">
+                            {batch.failed_files.map((file, idx) => (
+                              <div key={idx} className="failed-file-item">
+                                <FileText size={16} />
+                                <span className="filename">{file.filename}</span>
+                                <span className="doc-id">{file.document_id}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="no-failures">
+                      <CheckCircle size={48} />
+                      <p>No failed documents found!</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowFailedModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Components */}
+      <NotificationCenter />
+      <ToastNotification />
     </div>
   );
 };

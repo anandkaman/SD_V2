@@ -94,6 +94,7 @@ class ValidationService:
         cleaned = {
             "buyer_details": [],
             "seller_details": [],
+            "confirming_party_details": [],
             "property_details": {},
             "document_details": {}
         }
@@ -107,6 +108,8 @@ class ValidationService:
             cleaned_buyer = {
                 "name": buyer.get("name"),
                 "gender": buyer.get("gender"),
+                "father_name": buyer.get("father_name"),
+                "date_of_birth": buyer.get("date_of_birth"),
                 "aadhaar_number": ValidationService.clean_aadhaar(buyer.get("aadhaar_number")),
                 "pan_card_number": ValidationService.clean_pan(buyer.get("pan_card_number")),
                 "address": buyer.get("address"),
@@ -127,6 +130,8 @@ class ValidationService:
             cleaned_seller = {
                 "name": seller.get("name"),
                 "gender": seller.get("gender"),
+                "father_name": seller.get("father_name"),
+                "date_of_birth": seller.get("date_of_birth"),
                 "aadhaar_number": ValidationService.clean_aadhaar(seller.get("aadhaar_number")),
                 "pan_card_number": ValidationService.clean_pan(seller.get("pan_card_number")),
                 "address": seller.get("address"),
@@ -138,6 +143,28 @@ class ValidationService:
                 "property_share": seller.get("property_share")
             }
             cleaned["seller_details"].append(cleaned_seller)
+        
+        # Clean confirming party details
+        confirming_parties = extracted_data.get("confirming_party_details", [])
+        if not isinstance(confirming_parties, list):
+            confirming_parties = [confirming_parties] if confirming_parties else []
+        
+        for confirming_party in confirming_parties:
+            cleaned_confirming = {
+                "name": confirming_party.get("name"),
+                "gender": confirming_party.get("gender"),
+                "father_name": confirming_party.get("father_name"),
+                "date_of_birth": confirming_party.get("date_of_birth"),
+                "aadhaar_number": ValidationService.clean_aadhaar(confirming_party.get("aadhaar_number")),
+                "pan_card_number": ValidationService.clean_pan(confirming_party.get("pan_card_number")),
+                "address": confirming_party.get("address"),
+                "pincode": ValidationService.clean_pincode(confirming_party.get("pincode")),
+                "state": confirming_party.get("state"),
+                "phone_number": confirming_party.get("phone_number"),
+                "secondary_phone_number": confirming_party.get("secondary_phone_number"),
+                "email": confirming_party.get("email")
+            }
+            cleaned["confirming_party_details"].append(cleaned_confirming)
         
         # Clean property details (NO registration_fee here)
         prop = extracted_data.get("property_details", {})
@@ -163,6 +190,6 @@ class ValidationService:
             "registration_office": doc.get("registration_office")
         }
         
-        logger.info(f"Data validation complete: {len(cleaned['buyer_details'])} buyers, {len(cleaned['seller_details'])} sellers")
+        logger.info(f"Data validation complete: {len(cleaned['buyer_details'])} buyers, {len(cleaned['seller_details'])} sellers, {len(cleaned['confirming_party_details'])} confirming parties")
         
         return cleaned

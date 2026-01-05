@@ -78,6 +78,18 @@ fronted/build/
 
 # Electron dist
 fronted/dist/
+fronted/dist-electron/
+fronted/out/
+
+# Production build artifacts
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.snap
+release-builds/
+installer/
 
 # OS files
 .DS_Store
@@ -131,3 +143,19 @@ dmypy.json
 # Backup files
 *.bak
 *.backup
+*_backup/
+*_OLD.*
+*Copy.*
+
+# Temporary documentation (development only)
+*IMPLEMENTATION*.md
+*COMPLETE*.md
+*SUMMARY*.md
+*GUIDE*.md
+!docs/*.md
+!README.md
+
+# Development scripts
+pm2-*.bat
+start-*.bat
+cleanup-*.bat

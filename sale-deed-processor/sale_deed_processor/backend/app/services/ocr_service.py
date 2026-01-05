@@ -286,6 +286,12 @@ class OCRService:
 
         # Pass the images to ocr_pdf to avoid re-conversion
         results = self.ocr_pdf(pdf_path, max_pages=max_pages, images=images)
+        
+        # IMPORTANT: Sort results by page_num to ensure correct order
+        # This is critical for registration_fee_extractor which processes line-by-line
+        # and expects numbers to be in top-to-bottom order (page 1, then page 2, etc.)
+        results.sort(key=lambda x: x.get("page_num", 0))
+        
         full_text = ""
 
         for result in results:

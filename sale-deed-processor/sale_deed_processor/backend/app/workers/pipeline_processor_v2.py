@@ -247,6 +247,43 @@ class PipelineBatchProcessor:
             f"Pipeline processing completed: {summary['successful']}/{summary['total']} successful"
         )
 
+        # ✅ UPDATE BATCH STATUS TO COMPLETED
+        try:
+            from app.database import get_db_context
+            from app.models import BatchSession
+            
+            with get_db_context() as db:
+                # Get the most recent processing batch
+                batch_session = db.query(BatchSession).filter(
+                    BatchSession.status == 'processing'
+                ).order_by(BatchSession.processing_started_at.desc()).first()
+                
+                if batch_session:
+                    batch_session.status = 'completed'
+                    batch_session.processed_count = summary['successful']
+                    batch_session.failed_count = summary['failed']
+                    db.commit()
+                    logger.info(f"Updated batch {batch_session.batch_id} status to completed")
+                    
+                    # ✅ CREATE BATCH COMPLETION NOTIFICATION
+                    try:
+                        from app.services.notification_service import notification_service
+                        
+                        notification_service.create_batch_completion_notification(
+                            db=db,
+                            batch_id=batch_session.batch_id,
+                            batch_name=batch_session.batch_name or batch_session.batch_id,
+                            total_files=summary['total'],
+                            successful=summary['successful'],
+                            failed=summary['failed']
+                        )
+                        logger.info(f"Batch completion notification created for {batch_session.batch_id}")
+                    except Exception as notif_error:
+                        logger.warning(f"Could not create batch completion notification: {notif_error}")
+                        
+        except Exception as e:
+            logger.warning(f"Could not update batch session status: {e}")
+
         return summary
 
     def _stage1_ocr_with_queue(self, processor, pdf_path: Path, queue: Queue) -> Stage1Result:
