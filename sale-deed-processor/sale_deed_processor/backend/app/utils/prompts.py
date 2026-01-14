@@ -38,7 +38,7 @@ Father's name is typically mentioned after the person's name using these pattern
    - Phone number, Secondary phone number, Email
    - Property share percentage (e.g., "50%", must be in percentage format "%")
 
-3. CONFIRMING PARTY DETAILS: Extract ALL confirming parties mentioned (also known as "concerning party" or witnesses who confirm the transaction).
+3. CONFIRMING PARTY DETAILS: Extract ALL confirming parties mentioned (will be explicitily mentioned as confirming party or confirming parties do not send witnesses or signatory, better ignore if not sure never mix with sellers and buyers**confidence needed 95%**).
    - Full name, Gender
    - **Father's name: Look for S/O, D/O, W/O, or Kannada equivalents (ಮಗ, ಮಗಳು, ಪತ್ನಿ) after the person's name. Extract the name that follows.**
    - Date of birth (YYYY-MM-DD format)
@@ -70,7 +70,9 @@ IMPORTANT NOTES:
 - **ALL addresses must be in English (translate from Kannada/regional languages, if not possible return as-is).**
 - Multiple buyers/sellers/confirming parties should be in arrays.
 - Date of birth should be in YYYY-MM-DD format or null.
-- sometimes pan is mentioned in somewhere far from the user details so try to extract pan from whole document .
+- sometimes pan is mentioned in somewhere far from the user details so try to extract pan from whole document.
+-Definition of Confirming Parties:"Extract 'Confirming Parties' only if it is explicitily mentioned as confirming party or confirming parties(multi lingual). Do not classify generic witnesses or signatories as confirming parties. If no confirming party is clearly identified, exclude this key from the JSON output."
+-OCR Denoising Instruction:"The source text contains OCR artifacts (typos, spacing errors, garbled characters). You must apply context-aware correction to names and standard legal terms to ensure the final JSON output is clean and readable. Prioritize accuracy over verbatim transcription of errors."
 
 Return *ONLY valid JSON* in this exact structure:
 
