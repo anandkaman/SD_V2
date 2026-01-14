@@ -181,4 +181,18 @@ if getattr(sys, 'frozen', False):
     print(f"[Frozen Mode] YOLO model: {settings.YOLO_MODEL_PATH}")
     print(f"[Frozen Mode] Data dir: {settings.DATA_DIR}")
 
+
 settings.create_directories()
+
+# Load runtime configuration (persists settings across restarts)
+try:
+    from app.utils.runtime_config import load_runtime_config
+    runtime_config = load_runtime_config()
+    
+    # Apply runtime overrides
+    if "USE_EMBEDDED_OCR" in runtime_config:
+        settings.USE_EMBEDDED_OCR = runtime_config["USE_EMBEDDED_OCR"]
+        print(f"[Runtime Config] USE_EMBEDDED_OCR = {settings.USE_EMBEDDED_OCR}")
+except Exception as e:
+    print(f"[Runtime Config] Could not load runtime config: {e}")
+

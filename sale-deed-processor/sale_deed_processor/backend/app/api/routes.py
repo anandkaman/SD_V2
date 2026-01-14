@@ -394,10 +394,15 @@ async def toggle_embedded_ocr(enabled: bool):
     """Toggle embedded OCR mode (PyMuPDF vs Poppler+Tesseract)"""
     try:
         settings.USE_EMBEDDED_OCR = enabled
+        
+        # Persist to runtime config file
+        from app.utils.runtime_config import update_runtime_config
+        update_runtime_config("USE_EMBEDDED_OCR", enabled)
+        
         ocr_mode = "PyMuPDF (Embedded OCR)" if enabled else "Poppler+Tesseract"
         return {
             "success": True,
-            "message": f"Embedded OCR mode {'enabled' if enabled else 'disabled'}",
+            "message": f"Embedded OCR mode {'enabled' if enabled else 'disabled'} and saved",
             "use_embedded_ocr": enabled,
             "ocr_mode": ocr_mode
         }
