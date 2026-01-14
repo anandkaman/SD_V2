@@ -88,10 +88,15 @@ class PDFProcessorV2:
 
 
             # Step 2: Perform OCR - Use PyMuPDF for embedded OCR or Tesseract for traditional OCR
-            pdf_images = None  # Store images for YOLO reuse
+            pdf_images = None  # Store images for LLM vision enhancement
             if settings.USE_EMBEDDED_OCR:
                 logger.info(f"[{document_id}] Stage1 Step2: Reading embedded OCR with PyMuPDF (max 30 pages)")
                 full_ocr_text = self.pymupdf_reader.get_full_text(str(pdf_path), max_pages=30)
+                
+                # Generate images for LLM vision enhancement (if enabled)
+                if settings.ENABLE_LLM_VISION and settings.LLM_VISION_IMAGE_COUNT > 0:
+                    logger.info(f"[{document_id}] Generating {settings.LLM_VISION_IMAGE_COUNT} images for LLM vision enhancement")
+                    pdf_images = self.ocr_service.pdf_to_images(str(pdf_path), max_pages=settings.LLM_VISION_IMAGE_COUNT)
             else:
                 logger.info(f"[{document_id}] Stage1 Step2: Performing OCR with Poppler+Tesseract (max 30 pages)")
                 full_ocr_text, pdf_images = self.ocr_service.get_full_text(str(pdf_path), max_pages=30, return_images=True)
