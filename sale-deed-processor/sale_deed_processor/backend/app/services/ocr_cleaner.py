@@ -31,7 +31,8 @@ class OCRCleaner:
     ENGLISH_LOWER_END = 0x007A    # z
     DIGIT_START = 0x0030          # 0
     DIGIT_END = 0x0039            # 9
-    ALLOWED_SYMBOLS = {',', '.', '-', ' ', '\n', '\r'}
+    ALLOWED_SYMBOLS = {',', '.', '-', ' ', '\n', '\r', '(', ')'}  # Added ( ) for PAN extraction
+
     
     def __init__(self):
         """Initialize OCR Cleaner"""

@@ -354,15 +354,16 @@ class PDFProcessorV2:
                                 )
                                 
                                 # Store remark that Vision API failed
+                                # IMPORTANT: Store in extracted_data BEFORE validation
                                 pan_mismatch_remark = (
                                     f"PAN Mismatch: OCR found {verification_details['ocr_pan_count']} PANs, "
                                     f"JSON found {verification_details['json_pan_count']} PANs. "
                                     f"Vision API fallback failed. Manual review required."
                                 )
                                 
-                                if "property_details" not in cleaned_data:
-                                    cleaned_data["property_details"] = {}
-                                cleaned_data["property_details"]["remarks"] = pan_mismatch_remark
+                                if "property_details" not in extracted_data:
+                                    extracted_data["property_details"] = {}
+                                extracted_data["property_details"]["remarks"] = pan_mismatch_remark
                                 
                                 logger.warning(f"[{document_id}] {pan_mismatch_remark}")
 
