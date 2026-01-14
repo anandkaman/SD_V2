@@ -132,7 +132,7 @@ def generate_csv_export(
             "State Code": prop.state if prop and prop.state else "",
             "Country Code": "IN",
             "Stamp Value": prop.registration_fee if prop and prop.registration_fee else "",
-            "Remarks": "",
+            "Remarks": prop.remarks if prop and prop.remarks else "",  # NEW: Map from property_details
             "Transaction Amount related to the person (PC)": prop.sale_consideration if prop and prop.sale_consideration else ""
         }
         

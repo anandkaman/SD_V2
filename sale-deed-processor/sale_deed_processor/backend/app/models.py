@@ -41,6 +41,7 @@ class PropertyDetail(Base):
     registration_fee = Column(String, nullable=True)  # Changed from Float to String (from pdfplumber)
     new_ocr_reg_fee = Column(String, nullable=True)  # Registration fee extracted from OCR text
     guidance_value = Column(String, nullable=True)  # Changed from Float to String
+    remarks = Column(String, nullable=True)  # NEW: Store PAN mismatch and other remarks
 
     document = relationship("DocumentDetail", back_populates="property_details")
 

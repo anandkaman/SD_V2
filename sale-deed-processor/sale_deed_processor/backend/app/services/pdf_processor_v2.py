@@ -86,6 +86,7 @@ class PDFProcessorV2:
             if self.batch_processor and not self.batch_processor.is_running:
                 raise ProcessingStoppedException("Stopped before OCR")
 
+
             # Step 2: Perform OCR - Use PyMuPDF for embedded OCR or Tesseract for traditional OCR
             pdf_images = None  # Store images for YOLO reuse
             if settings.USE_EMBEDDED_OCR:
@@ -99,6 +100,14 @@ class PDFProcessorV2:
                 raise Exception("Text extraction returned insufficient text")
 
             logger.info(f"[{document_id}] OCR completed: {len(full_ocr_text)} characters")
+
+            # Step 2.5: Clean OCR text (NEW)
+            if settings.ENABLE_OCR_CLEANING:
+                from app.services.ocr_cleaner import OCRCleaner
+                cleaner = OCRCleaner()
+                full_ocr_text = cleaner.clean_text(full_ocr_text)
+                logger.info(f"[{document_id}] OCR cleaning completed: {len(full_ocr_text)} characters after cleaning")
+
 
             return Stage1Result(
                 pdf_path=pdf_path,
@@ -225,6 +234,126 @@ class PDFProcessorV2:
             # STOP CHECK
             if self.batch_processor and not self.batch_processor.is_running:
                 raise ProcessingStoppedException("Stopped before validation")
+
+            # Step 3.5: PAN Verification and Vision Fallback (NEW)
+            if settings.ENABLE_PAN_VERIFICATION:
+                from app.services.pan_verifier import PANVerifier
+                verifier = PANVerifier()
+                
+                # Extract PANs from OCR and JSON
+                ocr_pans = verifier.extract_pans_from_ocr(stage1_result.ocr_text)
+                json_pans = verifier.extract_pans_from_json(extracted_data)
+                
+                # Verify counts
+                is_match, verification_details = verifier.verify_pan_counts(ocr_pans, json_pans)
+                
+                if not is_match:
+                    logger.warning(
+                        f"[{document_id}] PAN mismatch detected: "
+                        f"OCR has {verification_details['ocr_pan_count']} unique PANs, "
+                        f"JSON has {verification_details['json_pan_count']} unique PANs"
+                    )
+                    logger.info(f"[{document_id}] Triggering Vision API fallback...")
+                    
+                    # Trigger Vision API fallback
+                    try:
+                        from app.services.gemini_vision_service import GeminiVisionService
+                        vision_service = GeminiVisionService()
+                        
+                        # Determine number of images to send
+                        num_images = min(
+                            settings.VISION_FALLBACK_IMAGE_COUNT,
+                            len(stage1_result.pdf_images) if stage1_result.pdf_images else 0
+                        )
+                        
+                        if num_images > 0 and stage1_result.pdf_images:
+                            logger.info(
+                                f"[{document_id}] Sending first {num_images} images to Vision API "
+                                f"(out of {len(stage1_result.pdf_images)} total)"
+                            )
+                            
+                            # Get images for Vision API
+                            images_for_vision = stage1_result.pdf_images[:num_images]
+                            
+                            # Get OCR for remaining pages (if any)
+                            remaining_ocr = ""
+                            if settings.VISION_FALLBACK_MODE == "auto":
+                                if len(stage1_result.pdf_images) > num_images:
+                                    # Extract OCR from remaining pages
+                                    remaining_images = stage1_result.pdf_images[num_images:]
+                                    logger.info(
+                                        f"[{document_id}] Using OCR for remaining {len(remaining_images)} pages"
+                                    )
+                                    remaining_ocr_results = self.ocr_service.ocr_pdf(
+                                        str(pdf_path), 
+                                        max_pages=30, 
+                                        images=remaining_images
+                                    )
+                                    remaining_ocr = "\n\n".join([
+                                        f"--- Page {r['page_num']} ---\n{r['text']}"
+                                        for r in remaining_ocr_results
+                                    ])
+                            
+                            # Call Vision API with multiple images
+                            logger.info(f"[{document_id}] Calling Vision API for structured data extraction...")
+                            extracted_data = vision_service.extract_structured_data_from_images(
+                                images_for_vision,
+                                remaining_ocr
+                            )
+                            
+                            if extracted_data:
+                                logger.info(f"[{document_id}] ✓ Vision API fallback successful!")
+                                result["llm_extracted"] = True  # Update flag
+                                
+                                # Re-verify PANs after Vision API extraction
+                                vision_json_pans = verifier.extract_pans_from_json(extracted_data)
+                                is_match_after_vision, vision_details = verifier.verify_pan_counts(ocr_pans, vision_json_pans)
+                                
+                                if not is_match_after_vision:
+                                    # PAN mismatch persists even after Vision API
+                                    pan_mismatch_remark = (
+                                        f"PAN Mismatch: OCR found {vision_details['ocr_pan_count']} PANs "
+                                        f"({', '.join(vision_details['ocr_pans'])}), "
+                                        f"Extracted {vision_details['json_pan_count']} PANs "
+                                        f"({', '.join(vision_details['json_pans'])}). "
+                                        f"Manual review required."
+                                    )
+                                    
+                                    # Store in property_details
+                                    if "property_details" not in extracted_data:
+                                        extracted_data["property_details"] = {}
+                                    extracted_data["property_details"]["remarks"] = pan_mismatch_remark
+                                    
+                                    logger.warning(f"[{document_id}] {pan_mismatch_remark}")
+                            else:
+                                logger.warning(
+                                    f"[{document_id}] Vision API returned no data, "
+                                    f"continuing with original OCR-based extraction"
+                                )
+                                
+                                # Store remark that Vision API failed
+                                pan_mismatch_remark = (
+                                    f"PAN Mismatch: OCR found {verification_details['ocr_pan_count']} PANs, "
+                                    f"JSON found {verification_details['json_pan_count']} PANs. "
+                                    f"Vision API fallback failed. Manual review required."
+                                )
+                                
+                                if "property_details" not in cleaned_data:
+                                    cleaned_data["property_details"] = {}
+                                cleaned_data["property_details"]["remarks"] = pan_mismatch_remark
+                                
+                                logger.warning(f"[{document_id}] {pan_mismatch_remark}")
+
+
+                        else:
+                            logger.warning(
+                                f"[{document_id}] No images available for Vision fallback, "
+                                f"continuing with OCR-based extraction"
+                            )
+                    
+                    except Exception as vision_error:
+                        logger.error(f"[{document_id}] Vision API fallback failed: {vision_error}")
+                        logger.info(f"[{document_id}] Continuing with original OCR-based extraction")
 
             # Step 4: Validate and clean data
             logger.info(f"[{document_id}] Stage2: Validating data")

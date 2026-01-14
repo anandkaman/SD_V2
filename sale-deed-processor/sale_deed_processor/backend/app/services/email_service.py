@@ -26,7 +26,7 @@ class EmailService:
         smtp_server: str = "smtp.gmail.com",
         smtp_port: int = 587,
         smtp_email: str = "formonexsolutions@gmail.com",
-        smtp_password: str = "onemrktuwpmummkl",  # App password without spaces
+        smtp_password: str = None,  # SECURITY: Load from environment variable
         developer_email: str = "nitinkumar@formonex.in"
     ):
         """
@@ -42,9 +42,12 @@ class EmailService:
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
         self.smtp_email = smtp_email
-        self.smtp_password = smtp_password
+        self.smtp_password = smtp_password or __import__('os').getenv("SMTP_PASSWORD", "")  # Load from env
         self.developer_email = developer_email
         self.sender_name = "Sale Deed AI System"
+        
+        if not self.smtp_password:
+            logger.warning("SMTP password not configured. Email sending will fail.")
         
         logger.info(f"Email service initialized - Notifications will be sent to {developer_email}")
     

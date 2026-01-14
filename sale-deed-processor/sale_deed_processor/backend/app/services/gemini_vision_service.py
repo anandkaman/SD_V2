@@ -98,3 +98,84 @@ class GeminiVisionService:
         except Exception as e:
             logger.error(f"Gemini vision extraction error: {e}")
             return None
+    
+    def extract_structured_data_from_images(
+        self, 
+        images: list, 
+        additional_ocr_text: str = None
+    ) -> Optional[Dict]:
+        """
+        Extract structured sale deed data from multiple images with optional OCR text
+        
+        This is used for Vision API fallback when OCR-based extraction fails.
+        Sends multiple page images to Gemini Vision API for direct extraction.
+        
+        Args:
+            images: List of PIL Image objects (typically first N pages of PDF)
+            additional_ocr_text: Optional OCR text from remaining pages
+            
+        Returns:
+            Extracted data as dictionary or None if extraction failed
+        """
+        if not images:
+            logger.error("No images provided for Vision API extraction")
+            return None
+        
+        try:
+            from ..utils.prompts import get_sale_deed_extraction_prompt
+            
+            # Get the sale deed extraction prompt
+            system_prompt = get_sale_deed_extraction_prompt()
+            
+            # Build the full prompt
+            prompt_parts = [system_prompt]
+            prompt_parts.append(f"\n\nI am providing {len(images)} page images from a sale deed document.")
+            
+            if additional_ocr_text:
+                prompt_parts.append(
+                    f"\n\nAdditionally, here is OCR text from the remaining pages:\n\n{additional_ocr_text}"
+                )
+            
+            prompt_parts.append("\n\nExtract the data and return ONLY valid JSON:")
+            
+            full_prompt = "".join(prompt_parts)
+            
+            logger.info(
+                f"Sending {len(images)} images to Gemini Vision API "
+                f"(with {'additional OCR' if additional_ocr_text else 'no additional OCR'})"
+            )
+            
+            # Build content list: [prompt, image1, image2, ...]
+            content = [full_prompt] + images
+            
+            # Generate content with images
+            response = self.model.generate_content(content)
+            
+            # Get the response text
+            response_text = response.text
+            
+            logger.info("Gemini Vision API returned response")
+            
+            # Parse JSON response
+            try:
+                import json
+                data = json.loads(response_text)
+                
+                logger.info("Successfully parsed Vision API JSON response")
+                
+                # Log extraction details
+                buyer_count = len(data.get("buyer_details", []))
+                seller_count = len(data.get("seller_details", []))
+                logger.info(f"Vision API extracted {buyer_count} buyers, {seller_count} sellers")
+                
+                return data
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"Vision API returned non-JSON: {e}")
+                logger.debug(f"Response text: {response_text[:500] if response_text else 'N/A'}")
+                return None
+        
+        except Exception as e:
+            logger.error(f"Vision API multi-image extraction error: {e}")
+            return None
+

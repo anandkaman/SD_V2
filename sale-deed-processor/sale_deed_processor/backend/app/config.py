@@ -124,7 +124,15 @@ class Settings(BaseSettings):
     ENABLE_OCR_REG_FEE_EXTRACTION: bool = True  # Enable extraction of registration fee from OCR text (fallback when pdfplumber fails)
 
     # Embedded OCR Mode (PyMuPDF)
-    USE_EMBEDDED_OCR: bool = False  # Enable PyMuPDF to read embedded OCR instead of Poppler+Tesseract
+    USE_EMBEDDED_OCR: bool = True  # Enable PyMuPDF to read embedded OCR instead of Poppler+Tesseract (CHANGED from False)
+
+    # OCR Cleaning (NEW)
+    ENABLE_OCR_CLEANING: bool = True  # Enable OCR text cleaning (filters unwanted characters)
+
+    # PAN Verification & Fallback (NEW)
+    ENABLE_PAN_VERIFICATION: bool = True  # Enable PAN count verification between OCR and JSON
+    VISION_FALLBACK_IMAGE_COUNT: int = 8  # Number of images to send to Vision API on PAN mismatch
+    VISION_FALLBACK_MODE: str = "auto"  # "auto" = use OCR for remaining pages, or specify number
 
     # Legacy Processing (Version 1)
     MAX_WORKERS: int = 2          # Used only if ENABLE_PIPELINE = False

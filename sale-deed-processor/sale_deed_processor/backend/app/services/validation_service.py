@@ -180,7 +180,8 @@ class ValidationService:
             "sale_consideration": prop.get("sale_consideration"),
             "stamp_duty_fee": prop.get("stamp_duty_fee"),
             "registration_fee": None,  # Will be set by pdfplumber or vision model
-            "guidance_value": None     # Will be calculated after registration_fee is set
+            "guidance_value": None,    # Will be calculated after registration_fee is set
+            "remarks": prop.get("remarks")  # NEW: Preserve remarks
         }
         
         # Clean document details
