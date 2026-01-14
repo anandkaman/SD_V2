@@ -35,24 +35,35 @@ class GeminiLLMService:
 
         logger.info(f"Gemini LLM initialized with model: {self.model_name}")
 
-    def extract_structured_data(self, ocr_text: str) -> Optional[Dict]:
+    def extract_structured_data(self, ocr_text: str, images: list = None) -> Optional[Dict]:
         """
         Extract structured JSON using Gemini API
-
+        
         Args:
             ocr_text: OCR text from the document
-
+            images: Optional list of PIL Image objects (first few pages for better accuracy)
+        
         Returns:
             Extracted data as dictionary or None if failed
         """
         system_prompt = get_sale_deed_extraction_prompt()
-        full_prompt = f"{system_prompt}\n\nHere is the complete OCR text from the document:\n\n{ocr_text}\n\nExtract the data and return ONLY valid JSON:"
-
+        
         try:
-            logger.info(f"Sending {len(ocr_text)} chars to Gemini model {self.model_name}")
-
-            # Generate content
-            response = self.model.generate_content(full_prompt)
+            if images and len(images) > 0:
+                # Vision + OCR mode: Send images with OCR text
+                logger.info(f"Sending {len(images)} images + {len(ocr_text)} chars OCR to Gemini model {self.model_name}")
+                
+                # Build content list: [prompt, image1, image2, ..., ocr_text]
+                content = [system_prompt]
+                content.extend(images)
+                content.append(f"\n\nHere is the complete OCR text from the document:\n\n{ocr_text}\n\nExtract the data and return ONLY valid JSON:")
+                
+                response = self.model.generate_content(content)
+            else:
+                # OCR-only mode (fallback)
+                logger.info(f"Sending {len(ocr_text)} chars to Gemini model {self.model_name} (OCR only)")
+                full_prompt = f"{system_prompt}\n\nHere is the complete OCR text from the document:\n\n{ocr_text}\n\nExtract the data and return ONLY valid JSON:"
+                response = self.model.generate_content(full_prompt)
 
             # Get the response text
             response_text = response.text

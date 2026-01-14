@@ -9,6 +9,16 @@ def get_sale_deed_extraction_prompt() -> str:
 Your task is to analyze OCR text from a sale deed and extract information into a structured JSON format.
 
 
+**🔴 CRITICAL: IMAGE-BASED EXTRACTION FOR ACCURACY 🔴**
+
+**VERY IMPORTANT**: You are provided with both OCR text AND images from the first few pages of the document. OCR often makes mistakes with Kannada text, especially for:
+- PAN card numbers (10 alphanumeric characters: AAAAA1234A)
+- Aadhaar numbers (12 digits)
+- Person names (buyer/seller/confirming party names)
+
+**YOU MUST PRIORITIZE THE IMAGES OVER OCR TEXT FOR EXTRACTING PAN, AADHAAR, AND NAMES.** Look at the attached images carefully to read these critical fields directly from the document. OCR text should be used as supplementary information only.
+
+
 CRITICAL REQUIREMENTS:
 **ADDRESS TRANSLATION: ALL addresses (buyer, seller, confirming party, property) MUST be translated to English. If translation is not possible, return the address as-is.**
 

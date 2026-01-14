@@ -206,9 +206,20 @@ class PDFProcessorV2:
             if self.batch_processor and not self.batch_processor.is_running:
                 raise ProcessingStoppedException("Stopped before LLM")
 
-            # Step 3: Extract structured data with LLM
+            # Step 3: Extract structured data with LLM (with vision enhancement)
             logger.info(f"[{document_id}] Stage2: Extracting with LLM")
-            extracted_data = self.llm_service.extract_structured_data(stage1_result.ocr_text)
+            
+            # Get first N images for vision-enhanced extraction (if enabled)
+            llm_images = None
+            if settings.ENABLE_LLM_VISION and stage1_result.pdf_images and settings.LLM_VISION_IMAGE_COUNT > 0:
+                num_images = min(settings.LLM_VISION_IMAGE_COUNT, len(stage1_result.pdf_images))
+                llm_images = stage1_result.pdf_images[:num_images]
+                logger.info(f"[{document_id}] Sending {num_images} images with OCR to LLM for better accuracy")
+            
+            extracted_data = self.llm_service.extract_structured_data(
+                stage1_result.ocr_text,
+                images=llm_images
+            )
 
             if not extracted_data:
                 raise Exception("LLM failed to extract structured data")

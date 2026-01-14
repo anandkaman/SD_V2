@@ -134,6 +134,11 @@ class Settings(BaseSettings):
     VISION_FALLBACK_IMAGE_COUNT: int = 8  # Number of images to send to Vision API on PAN mismatch
     VISION_FALLBACK_MODE: str = "auto"  # "auto" = use OCR for remaining pages, or specify number
 
+    # LLM Vision Enhancement (NEW)
+    ENABLE_LLM_VISION: bool = True  # Enable sending images with OCR to LLM (disable for English documents)
+    LLM_VISION_IMAGE_COUNT: int = 4  # Number of images to send with OCR to LLM for better PAN/Aadhaar extraction
+
+
     # Legacy Processing (Version 1)
     MAX_WORKERS: int = 2          # Used only if ENABLE_PIPELINE = False
     BATCH_SIZE: int = 10
