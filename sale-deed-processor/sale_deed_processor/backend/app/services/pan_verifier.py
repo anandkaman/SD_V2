@@ -49,6 +49,56 @@ class PANVerifier:
         
         return pans
     
+    def extract_pans_from_images(self, images: list, ocr_service) -> list[str]:
+        """
+        Extract PAN numbers from images using Tesseract English-only OCR
+        
+        This provides a second source of PAN extraction for better accuracy.
+        Uses English-only Tesseract for maximum PAN recognition.
+        
+        Args:
+            images: List of PIL Image objects
+            ocr_service: OCRService instance for Tesseract OCR
+            
+        Returns:
+            List of PAN numbers found in images (may contain duplicates)
+        """
+        if not images:
+            return []
+        
+        all_pans = []
+        
+        try:
+            from app.services.ocr_cleaner import OCRCleaner
+            cleaner = OCRCleaner()
+            
+            # Run Tesseract English-only OCR on images
+            logger.info(f"Running Tesseract English-only OCR on {len(images)} images for PAN extraction")
+            ocr_results = ocr_service.ocr_pdf(
+                pdf_path=None,  # Not needed when images provided
+                max_pages=len(images),
+                images=images
+            )
+            
+            # Extract and clean text from all pages
+            for result in ocr_results:
+                if result.get('text'):
+                    # Clean the OCR text
+                    cleaned_text = cleaner.clean_text(result['text'])
+                    # Extract PANs
+                    page_pans = self.pan_regex.findall(cleaned_text)
+                    all_pans.extend(page_pans)
+            
+            logger.info(f"Tesseract OCR found {len(all_pans)} PAN numbers across {len(images)} images")
+            if all_pans:
+                logger.debug(f"Tesseract PANs: {all_pans}")
+            
+            return all_pans
+            
+        except Exception as e:
+            logger.error(f"Error extracting PANs from images: {e}")
+            return []
+    
     def extract_pans_from_json(self, json_data: Dict) -> List[str]:
         """
         Extract PAN numbers from Gemini JSON response

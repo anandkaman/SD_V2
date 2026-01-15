@@ -131,11 +131,12 @@ class Settings(BaseSettings):
 
     # PAN Verification & Fallback (NEW)
     ENABLE_PAN_VERIFICATION: bool = True  # Enable PAN count verification between OCR and JSON
+    ENABLE_VISION_FALLBACK: bool = False  # Enable Vision API fallback on PAN mismatch (disabled - using dual OCR instead)
     VISION_FALLBACK_IMAGE_COUNT: int = 8  # Number of images to send to Vision API on PAN mismatch
     VISION_FALLBACK_MODE: str = "auto"  # "auto" = use OCR for remaining pages, or specify number
 
     # LLM Vision Enhancement (NEW)
-    ENABLE_LLM_VISION: bool = True  # Enable sending images with OCR to LLM (disable for English documents)
+    ENABLE_LLM_VISION: bool = False  # Disabled - using Tesseract for PAN extraction instead
     LLM_VISION_IMAGE_COUNT: int = 4  # Number of images to send with OCR to LLM for better PAN/Aadhaar extraction
 
 
